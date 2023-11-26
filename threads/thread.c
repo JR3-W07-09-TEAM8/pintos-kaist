@@ -27,6 +27,8 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list wait_list;
+extern int64_t MIN_alarm_time;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -109,6 +111,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+    list_init (&wait_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -587,4 +590,45 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+void thread_wait(int64_t ticks) {
+
+    struct thread *t = thread_current();
+    enum intr_level old_level;
+
+    ASSERT(!intr_context());
+    old_level = intr_disable();
+    if (t != idle_thread) {
+        t->tick = ticks;
+        if (MIN_alarm_time > ticks)	{
+            MIN_alarm_time = ticks;
+        }
+        list_push_back(&wait_list, &t->elem);
+    }
+
+    do_schedule(THREAD_BLOCKED);
+    intr_set_level(old_level);
+}
+
+void thread_ready(int64_t ticks) {
+    struct thread *t;
+    struct list_elem *now = list_begin(&wait_list);
+    int64_t new_MIN = INT64_MAX;
+
+    while (now != list_tail(&wait_list)) {
+        t = list_entry(now, struct thread, elem);
+
+        if (t->tick <= ticks) {
+            now = list_remove(&t->elem);
+            thread_unblock(t);
+        }
+        else {
+            now = list_next(now);
+            if (new_MIN > t->tick) {
+                new_MIN = t->tick;
+            }
+        }
+    }
+    MIN_alarm_time = new_MIN;
 }
