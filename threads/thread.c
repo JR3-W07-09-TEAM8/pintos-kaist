@@ -63,6 +63,7 @@ static void init_thread(struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -204,8 +205,27 @@ tid_t thread_create(const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	/* priority schedule Sudo Code
+	1. 현재 Thread 실행 중인 Thread의 우선 순위를 구한다.
+	2. priority와 비교한다.
+	3. 만약 추가하는 쓰레드의 우선 순위가 더 높다면,
+		-> 현재 실행 중인 쓰레드는 CPU를 반납한다.
+		그게 아니라면,
+		-> ready_list에 삽입한다.
+	*/
+	enum intr_level old_level;
+
+	ASSERT(!intr_context());
+	old_level = intr_disable();
+
+	int current_thread_prior = thread_get_priority();
+	if (current_thread_prior < priority)
+	{
+		thread_yield();
+	}
 	/* Add to run queue. */
 	thread_unblock(t);
+	intr_set_level(old_level);
 
 	return tid;
 }
@@ -240,7 +260,13 @@ void thread_unblock(struct thread *t)
 
 	old_level = intr_disable();
 	ASSERT(t->status == THREAD_BLOCKED);
-	list_push_back(&ready_list, &t->elem);
+
+	/* TODO List */
+	// 1. list_push_back 삭제
+	// 2. list_insert_ordered 추가
+	// list_push_back(&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
+
 	t->status = THREAD_READY;
 	intr_set_level(old_level);
 }
@@ -287,6 +313,16 @@ void thread_sleep(int64_t ticks)
 		thread_block();
 	}
 	intr_set_level(old_level);
+}
+
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b)
+{
+	struct thread *t_a;
+	struct thread *t_b;
+
+	t_a = list_entry(a, struct thread, elem);
+	t_b = list_entry(b, struct thread, elem);
+	return ((t_a->priority) < (t_b->priority) ? true : false);
 }
 
 /* 쓰레드 깨우기 함수 */
@@ -346,7 +382,11 @@ void thread_yield(void)
 
 	old_level = intr_disable();
 	if (curr != idle_thread)
-		list_push_back(&ready_list, &curr->elem);
+		/* To Do List */
+		// 1. list_push_back 삭제
+		// 2. list_insert_ordered 추가
+		// list_push_back(&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
@@ -355,6 +395,7 @@ void thread_yield(void)
 void thread_set_priority(int new_priority)
 {
 	thread_current()->priority = new_priority;
+	/* TODO : Reorder the ready_list */
 }
 
 /* Returns the current thread's priority. */
@@ -575,10 +616,6 @@ thread_launch(struct thread *th)
 static void
 do_schedule(int status)
 {
-	printf("do_schedule begin\n");
-
-	// 여기서부터 문제 시작
-	// 1. status?
 	ASSERT(intr_get_level() == INTR_OFF);
 	ASSERT(thread_current()->status == THREAD_RUNNING);
 	while (!list_empty(&destruction_req))
