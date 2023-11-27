@@ -65,6 +65,7 @@ static void schedule(void);
 static tid_t allocate_tid(void);
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -103,6 +104,7 @@ void thread_init(void)
 	struct desc_ptr gdt_ds = {
 		.size = sizeof(gdt) - 1,
 		.address = (uint64_t)gdt};
+
 	lgdt(&gdt_ds);
 
 	/* Init the globla thread context */
@@ -110,6 +112,8 @@ void thread_init(void)
 	list_init(&ready_list);
 	list_init(&sleep_list);
 	list_init(&destruction_req);
+
+	/* Donation Data Structure */
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread();
@@ -180,6 +184,7 @@ void thread_print_stats(void)
 tid_t thread_create(const char *name, int priority,
 					thread_func *function, void *aux)
 {
+	printf(" ------------ thread_create (1) ----------- ");
 	struct thread *t;
 	tid_t tid;
 
@@ -191,6 +196,7 @@ tid_t thread_create(const char *name, int priority,
 		return TID_ERROR;
 
 	/* Initialize thread. */
+	printf(" ------------ thread_create (2) ----------- ");
 	init_thread(t, name, priority);
 	tid = t->tid = allocate_tid();
 
@@ -216,8 +222,9 @@ tid_t thread_create(const char *name, int priority,
 	enum intr_level old_level;
 
 	ASSERT(!intr_context());
-	old_level = intr_disable();
 
+	printf(" ------------ thread_create (3) ----------- ");
+	old_level = intr_disable();
 	int current_thread_prior = thread_get_priority();
 	if (current_thread_prior < priority)
 	{
@@ -226,7 +233,7 @@ tid_t thread_create(const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock(t);
 	intr_set_level(old_level);
-
+	printf(" ------------ thread_create (4) ----------- ");
 	return tid;
 }
 
@@ -315,7 +322,7 @@ void thread_sleep(int64_t ticks)
 	intr_set_level(old_level);
 }
 
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b)
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
 	struct thread *t_a;
 	struct thread *t_b;
@@ -394,8 +401,12 @@ void thread_yield(void)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority)
 {
-	thread_current()->priority = new_priority;
+	printf(" ----------- thread_set_priority (1) --------------- ");
+	thread_current()
+		->priority = new_priority;
 	/* TODO : Reorder the ready_list */
+	list_sort(&ready_list, cmp_priority, NULL);
+	printf(" ----------- thread_set_priority (end) --------------- ");
 }
 
 /* Returns the current thread's priority. */
@@ -496,6 +507,8 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->tf.rsp = (uint64_t)t + PGSIZE - sizeof(void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	// Donation list Initalize
+	list_init(&t->donations);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
