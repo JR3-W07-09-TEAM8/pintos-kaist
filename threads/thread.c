@@ -28,6 +28,7 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 static struct list wait_list;
+static struct list priority_list;
 extern int64_t MIN_alarm_time;
 
 /* Idle thread. */
@@ -210,6 +211,9 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+    yield_to_max();
+
+
 	return tid;
 }
 
@@ -243,7 +247,10 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+//	list_push_back (&ready_list, &t->elem);
+
+    list_insert_ordered(& ready_list, & t-> elem, cmp_priority, NULL);
+
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -305,9 +312,12 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
-	do_schedule (THREAD_READY);
+//	if (curr != idle_thread)
+//		list_push_back (&ready_list, &curr->elem);
+
+    list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
+
+    do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
 
@@ -315,6 +325,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+    yield_to_max();
 }
 
 /* Returns the current thread's priority. */
@@ -631,4 +642,20 @@ void thread_ready(int64_t ticks) {
         }
     }
     MIN_alarm_time = new_MIN;
+}
+
+bool cmp_priority(const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED) {
+    struct thread *a = list_entry(a_, struct thread, elem)->priority;
+    struct thread *b = list_entry(b_, struct thread, elem)->priority;
+    return a > b;
+}
+
+void yield_to_max(void) {
+    if (!list_empty(&ready_list)) {
+        struct thread *top_pri = list_begin(&ready_list);
+        if (cmp_priority(top_pri, &thread_current()->elem, NULL))
+        {
+            thread_yield();
+        }
+    }
 }
