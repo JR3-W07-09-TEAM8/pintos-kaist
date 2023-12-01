@@ -111,6 +111,11 @@ struct thread {
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
     int64_t tick;
+    int inital_priority;
+    struct lock *lock_address;
+    struct list donations;
+    struct list_elem donation_elem;
+
 };
 
 /* If false (default), use round-robin scheduler.

@@ -187,14 +187,23 @@ lock_init (struct lock *lock) {
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
+/* TODO: Your implementation goes here */
 void
 lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
+    struct thread *curr = thread_current();
 
-	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+    if (lock->holder != NULL) {
+        curr->lock_address = lock;
+
+        list_insert_ordered (&lock->holder->donations, &curr->donation_elem, cmp_donation_priority, NULL);
+        donate_priority();
+    }
+    sema_down (&lock->semaphore);
+    curr->lock_address = NULL;
+    lock->holder = thread_current();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -222,13 +231,17 @@ lock_try_acquire (struct lock *lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to release a lock within an interrupt
    handler. */
+/* TODO: Your implementation goes here */
 void
-lock_release (struct lock *lock) {
-	ASSERT (lock != NULL);
-	ASSERT (lock_held_by_current_thread (lock));
+lock_release (struct lock *lock)
+{
+    ASSERT(lock != NULL);
+    ASSERT(lock_held_by_current_thread(lock));
 
-	lock->holder = NULL;
-	sema_up (&lock->semaphore);
+    lock->holder = NULL;
+    remove_with_lock(lock);
+    refresh_priority();
+    sema_up(&lock->semaphore);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -336,4 +349,11 @@ cmp_sem_priority (const struct list_elem *a, const struct list_elem *b, void *au
     struct list_elem *ta = list_begin(&sa->semaphore.waiters);
     struct list_elem *tb = list_begin(&sb->semaphore.waiters);
     return cmp_priority(ta, tb, NULL);
+}
+
+bool
+cmp_donation_priority (const struct list_elem *a , const struct list_elem *b, void *aux) {
+    struct thread *da = list_entry(a, struct thread, donation_elem);
+    struct thread *db = list_entry(b, struct thread, donation_elem);
+    return da -> priority > db -> priority;
 }
