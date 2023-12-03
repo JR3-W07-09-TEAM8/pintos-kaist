@@ -199,7 +199,8 @@ lock_acquire (struct lock *lock) {
         curr->lock_address = lock;
 
         list_insert_ordered (&lock->holder->donations, &curr->donation_elem, cmp_donation_priority, NULL);
-        donate_priority();
+        if (!thread_mlfqs)
+            donate_priority();
     }
     sema_down (&lock->semaphore);
     curr->lock_address = NULL;

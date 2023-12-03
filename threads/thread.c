@@ -663,8 +663,6 @@ thread_wait (int64_t ticks) {
             MIN_alarm_time = ticks;
         }
         list_push_back(&wait_list, &t->elem);
-    }else{
-        return;
     }
 
     do_schedule(THREAD_BLOCKED);
@@ -772,8 +770,6 @@ mlfqs_priority (struct thread *t) {
         if (pri_result > PRI_MAX)
             pri_result = PRI_MAX;
         t->priority = pri_result;
-    }else{
-        return;
     }
 }
 
@@ -789,8 +785,6 @@ mlfqs_recent_cpu (struct thread *t) {
             result = 0;
         }
         t->recent_cpu = result;
-    }else{
-        return;
     }
 }
 
@@ -811,8 +805,6 @@ mlfqs_increment (void) {
     if (thread_current() != idle_thread) {
         int cur_recent_cpu = thread_current()->recent_cpu;
         thread_current()->recent_cpu = add_mixed(cur_recent_cpu, 1);
-    }else{
-        return;
     }
 }
 

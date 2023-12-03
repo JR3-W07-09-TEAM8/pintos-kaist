@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/fixed_point.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -116,6 +117,9 @@ struct thread {
     struct list donations;
     struct list_elem donation_elem;
 
+    int nice;
+    int recent_cpu;
+    struct list_elem mlfqs_elem;
 };
 
 /* If false (default), use round-robin scheduler.
