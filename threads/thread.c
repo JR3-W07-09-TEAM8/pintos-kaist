@@ -217,6 +217,8 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+    list_push_back(&mlfqs_list, &t->mlfqs_elem);
+
 	/* Add to run queue. */
 	thread_unblock (t);
 
@@ -303,6 +305,7 @@ thread_exit (void) {
 #ifdef USERPROG
 	process_exit ();
 #endif
+    list_remove(&thread_current()->mlfqs_elem);
 
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
@@ -381,7 +384,7 @@ thread_get_load_avg (void) {
     enum intr_level old_level;
 
     old_level = intr_disable();
-    int target = fp_to_int_round(mult_mixed(load_avg, 100));
+    int target = fp_to_int(mult_mixed(load_avg, 100));
     intr_set_level(old_level);
 
     return target;
@@ -394,7 +397,7 @@ thread_get_recent_cpu (void) {
 	enum intr_level old_level;
 
     old_level = intr_disable();
-    int target = fp_to_int_round(mult_mixed(t->recent_cpu, 100));
+    int target = fp_to_int(mult_mixed(t->recent_cpu, 100));
     intr_set_level(old_level);
     return target;
 }
@@ -468,7 +471,6 @@ init_thread (struct thread *t, const char *name, int priority) {
 
     t->nice = NICE_DEFAULT;
     t->recent_cpu = RECENT_CPU_DEFAULT;
-
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
